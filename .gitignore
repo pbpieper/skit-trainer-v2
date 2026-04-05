@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+tsconfig.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Lampoon business files
+*.csv
+*.xlsx
+lampoon*
+COLD_CALL*
+COVER_LETTER*
+LAMPOON*
+Lampoon*
+
+# Subfolder projects (separate repos)
+app/
+lingua/
+lingua-copilot/
+nabu/
+nabu-cards/
+nabu-flashcards/
+reading-prep/
+sentence-creator/
+skit-trainer/
+skit-trainer-app/
+vocab-lifecycle/
+word-lens/
+
+# Misc
+vite-env.d.ts
