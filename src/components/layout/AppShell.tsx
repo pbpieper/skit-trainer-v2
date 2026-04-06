@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useApp } from '@/context/AppContext'
 import { useSkitContext } from '@/context/SkitContext'
 import { useGoal } from '@/context/GoalContext'
@@ -30,6 +30,34 @@ import { FutureMode } from '@/components/tools/FutureMode'
 import { Dashboard } from '@/components/tools/Dashboard'
 import type { ToolId } from '@/types/tools'
 
+/** Compact read-only tag display for the AppShell */
+function TagBar({ tags, onHint }: { tags: string[]; onHint: () => void }) {
+  if (tags.length === 0) return null
+
+  return (
+    <div
+      className="flex flex-wrap gap-1 mb-2 cursor-pointer"
+      onClick={onHint}
+      title="Edit tags in Read mode"
+    >
+      {tags.map(tag => (
+        <span
+          key={tag}
+          className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium"
+          style={{
+            background: 'var(--color-green-faded)',
+            color: 'var(--color-green-dark)',
+            border: '1px solid var(--color-green-light)',
+            lineHeight: 1.3,
+          }}
+        >
+          {tag}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function ToolContent({ toolId }: { toolId: ToolId }) {
   const { setActiveTool } = useApp()
   switch (toolId) {
@@ -55,10 +83,17 @@ function ToolContent({ toolId }: { toolId: ToolId }) {
 
 export function AppShell() {
   const { activeTool, setActiveTool, visited, currentSkitId, setCurrentSkitId, skitLibrary, refreshLibrary } = useApp()
-  const { skitTitle, skitSubtitle } = useSkitContext()
+  const { skitTitle, skitSubtitle, tags } = useSkitContext()
   const { streak } = useGoal()
   const { isDark, toggle } = useTheme()
   const [importerOpen, setImporterOpen] = useState(false)
+  const [tagHint, setTagHint] = useState(false)
+
+  const handleTagHint = useCallback(() => {
+    setActiveTool('read')
+    setTagHint(true)
+    setTimeout(() => setTagHint(false), 2000)
+  }, [setActiveTool])
 
   useKeyboardShortcuts({ setActiveTool, skitLibrary, currentSkitId, setCurrentSkitId })
   useSessionTracker()
@@ -112,6 +147,18 @@ export function AppShell() {
             onSelect={setCurrentSkitId}
             onAddClick={() => setImporterOpen(true)}
           />
+        )}
+
+        {/* Compact tag display */}
+        {currentSkitId && tags.length > 0 && (
+          <>
+            <TagBar tags={tags} onHint={handleTagHint} />
+            {tagHint && (
+              <p className="text-[10px] text-[var(--color-text-muted)] -mt-1 mb-1 ml-0.5">
+                Switched to Read mode — edit tags there
+              </p>
+            )}
+          </>
         )}
 
         {/* Goal Setter (only for starred skits) */}
