@@ -3,6 +3,7 @@ import { useSkitContext } from '@/context/SkitContext'
 import { useApp } from '@/context/AppContext'
 import { useServices } from '@/services/ServiceProvider'
 import { useCreativeHub } from '@/hooks/useCreativeHub'
+import { useDebouncedSave } from '@/hooks/useDebouncedSave'
 import { SciencePanel } from '@/components/molecules/SciencePanel'
 import { InlineTags } from '@/components/molecules/InlineTags'
 import type { Chunk, Line } from '@/types/skit'
@@ -21,6 +22,15 @@ export function ReadMode() {
 
   const currentSkit = skitLibrary.find(s => s.id === skitId)
   const displayChunks = editedChunks ?? chunks
+
+  // Debounced tag saving — tags are synced after 1.5s of inactivity
+  const { save: debouncedSaveTags, isPending: tagsSaving } = useDebouncedSave<string[]>(
+    async (newTags) => {
+      await skitService.updateSkit(skitId, { tags: newTags })
+      refreshLibrary()
+    },
+    1500,
+  )
 
   const handleSpeak = async (key: string, text: string) => {
     if (speaking === key) {
@@ -50,10 +60,9 @@ export function ReadMode() {
     })
   }
 
-  const handleTagsChange = useCallback(async (newTags: string[]) => {
-    await skitService.updateSkit(skitId, { tags: newTags })
-    refreshLibrary()
-  }, [skitId, skitService, refreshLibrary])
+  const handleTagsChange = useCallback((newTags: string[]) => {
+    debouncedSaveTags(newTags)
+  }, [debouncedSaveTags])
 
   const startEdit = () => {
     setEditedChunks(JSON.parse(JSON.stringify(chunks)))
@@ -105,7 +114,14 @@ export function ReadMode() {
 
       {/* Tags + Edit toggle */}
       <div className="flex justify-between items-start mb-3 gap-2">
-        <InlineTags tags={currentSkit?.tags ?? []} onChange={handleTagsChange} />
+        <div className="flex-1 min-w-0">
+          <InlineTags tags={currentSkit?.tags ?? []} onChange={handleTagsChange} />
+          {tagsSaving && (
+            <span className="text-[10px] text-[var(--color-text-muted)] mt-1 block animate-pulse">
+              Saving tags...
+            </span>
+          )}
+        </div>
         <button
           onClick={editMode ? cancelEdit : startEdit}
           className={`px-3 py-1 rounded-lg text-[11px] font-semibold cursor-pointer border shrink-0 transition-colors ${
@@ -120,13 +136,21 @@ export function ReadMode() {
 
       {/* Save bar when editing */}
       {editMode && (
-        <div className="flex justify-end gap-2 mb-3">
+        <div className="flex justify-between items-center mb-3">
+          {editedChunks && JSON.stringify(editedChunks) !== JSON.stringify(chunks) ? (
+            <span className="text-[10px] font-semibold text-[var(--color-pink)] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-pink)] inline-block" />
+              Unsaved changes
+            </span>
+          ) : (
+            <span />
+          )}
           <button
             onClick={saveEdit}
             className="px-4 py-1.5 rounded-lg text-xs font-bold cursor-pointer border-none text-white"
             style={{ background: 'var(--color-green-main)' }}
           >
-            💾 Save Changes
+            Save Changes
           </button>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import { useGoal } from '@/context/GoalContext'
 import { useApp } from '@/context/AppContext'
 import type { DailyTask, PlanCategory } from '@/types/goals'
@@ -10,15 +11,43 @@ const CATEGORY_COLORS: Record<PlanCategory['name'], { bg: string; text: string; 
   transfer: { bg: 'rgba(255, 152, 0, 0.08)', text: 'rgba(230, 81, 0, 1)', border: 'rgba(255, 152, 0, 0.3)' },
 }
 
-const DIFFICULTY_LABELS = ['', '⚡', '⚡⚡', '⚡⚡⚡', '⚡⚡⚡⚡', '⚡⚡⚡⚡⚡']
+const DIFFICULTY_LABELS = ['', '', '', '', '', '']
 
 interface Props {
   onNavigate: (toolId: ToolId) => void
 }
 
 export function DailyTodos({ onNavigate }: Props) {
-  const { todayTasks, streak, completeTask, uncompleteTask, isTaskLocked, currentGoal } = useGoal()
+  const { todayTasks, streak, completeTask, uncompleteTask, isTaskLocked, currentGoal, pendingCompletions } = useGoal()
   const { setActiveTool } = useApp()
+  const [categoryFlash, setCategoryFlash] = useState<string | null>(null)
+  const prevTasksRef = useRef<DailyTask[]>([])
+
+  // Detect when a category just became fully complete
+  useEffect(() => {
+    if (prevTasksRef.current.length === 0) {
+      prevTasksRef.current = todayTasks
+      return
+    }
+    const prev = prevTasksRef.current
+    const categoryOrder: PlanCategory['name'][] = ['foundation', 'retrieval', 'integration', 'transfer']
+
+    for (const cat of categoryOrder) {
+      const prevCatTasks = prev.filter(t => t.category === cat)
+      const currCatTasks = todayTasks.filter(t => t.category === cat)
+      if (currCatTasks.length === 0) continue
+
+      const prevAllDone = prevCatTasks.length > 0 && prevCatTasks.every(t => t.completedAt)
+      const currAllDone = currCatTasks.every(t => t.completedAt)
+
+      if (currAllDone && !prevAllDone) {
+        setCategoryFlash(cat)
+        setTimeout(() => setCategoryFlash(null), 2000)
+        break
+      }
+    }
+    prevTasksRef.current = todayTasks
+  }, [todayTasks])
 
   if (!currentGoal || todayTasks.length === 0) return null
 
@@ -34,6 +63,12 @@ export function DailyTodos({ onNavigate }: Props) {
     grouped.set(task.category, list)
   }
 
+  // Build a lookup for task titles by id (for "unlocks" display)
+  const taskTitleMap = new Map<string, string>()
+  for (const task of todayTasks) {
+    taskTitleMap.set(task.id, task.title)
+  }
+
   const categoryOrder: PlanCategory['name'][] = ['foundation', 'retrieval', 'integration', 'transfer']
 
   return (
@@ -44,7 +79,7 @@ export function DailyTodos({ onNavigate }: Props) {
           <span className="text-sm font-bold text-[var(--color-green-dark)]">Today's Practice</span>
           {streak && streak.currentStreak > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--color-pink-faded,#fce4ec)] text-[var(--color-pink)]">
-              🔥 {streak.currentStreak} day streak
+              {streak.currentStreak} day streak
             </span>
           )}
         </div>
@@ -70,6 +105,7 @@ export function DailyTodos({ onNavigate }: Props) {
         if (!tasks || tasks.length === 0) return null
         const colors = CATEGORY_COLORS[catName]
         const allCatDone = tasks.every(t => t.completedAt)
+        const isFlashing = categoryFlash === catName
 
         return (
           <div key={catName} className="mb-2.5 last:mb-0">
@@ -80,20 +116,35 @@ export function DailyTodos({ onNavigate }: Props) {
               >
                 {catName}
               </span>
-              {allCatDone && <span className="text-[10px] text-[var(--color-green-main)]">✓ Complete</span>}
+              {allCatDone && !isFlashing && <span className="text-[10px] text-[var(--color-green-main)]">Complete</span>}
+              {isFlashing && (
+                <span className="text-[10px] font-bold text-[var(--color-green-main)] animate-pulse">
+                  Category complete!
+                </span>
+              )}
             </div>
-            {tasks.map(task => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                locked={isTaskLocked(task)}
-                onToggle={() => task.completedAt ? uncompleteTask(task.id) : completeTask(task.id)}
-                onNavigate={() => {
-                  setActiveTool(task.toolId)
-                  onNavigate(task.toolId)
-                }}
-              />
-            ))}
+            {tasks.map(task => {
+              const hasDependency = task.dependsOn.length > 0
+              const locked = isTaskLocked(task)
+
+              return (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  locked={locked}
+                  hasDependency={hasDependency}
+                  isPending={pendingCompletions.has(task.id)}
+                  unlockNames={task.unlocks
+                    .map(id => taskTitleMap.get(id))
+                    .filter(Boolean) as string[]}
+                  onToggle={() => task.completedAt ? uncompleteTask(task.id) : completeTask(task.id)}
+                  onNavigate={() => {
+                    setActiveTool(task.toolId)
+                    onNavigate(task.toolId)
+                  }}
+                />
+              )
+            })}
           </div>
         )
       })}
@@ -101,30 +152,53 @@ export function DailyTodos({ onNavigate }: Props) {
       {/* All done celebration */}
       {allDone && (
         <div className="mt-3 p-2.5 rounded-lg text-center text-xs font-bold text-[var(--color-green-dark)] bg-[var(--color-green-faded)] border border-[var(--color-green-light)]">
-          🎉 All tasks complete! {streak && streak.currentStreak > 1 ? `${streak.currentStreak} day streak!` : 'Streak started!'}
+          All tasks complete! {streak && streak.currentStreak > 1 ? `${streak.currentStreak} day streak!` : 'Streak started!'}
         </div>
       )}
     </div>
   )
 }
 
-function TaskRow({ task, locked, onToggle, onNavigate }: {
+function TaskRow({ task, locked, hasDependency, isPending, unlockNames, onToggle, onNavigate }: {
   task: DailyTask
   locked: boolean
+  hasDependency: boolean
+  isPending: boolean
+  unlockNames: string[]
   onToggle: () => void
   onNavigate: () => void
 }) {
   const done = !!task.completedAt
+  const [wasLocked, setWasLocked] = useState(locked)
+  const [justUnlocked, setJustUnlocked] = useState(false)
+
+  // Detect when a task transitions from locked to unlocked
+  useEffect(() => {
+    if (wasLocked && !locked) {
+      setJustUnlocked(true)
+      const timer = setTimeout(() => setJustUnlocked(false), 600)
+      return () => clearTimeout(timer)
+    }
+    setWasLocked(locked)
+  }, [locked, wasLocked])
 
   return (
     <div
-      className={`flex items-center gap-2 py-1.5 px-2 rounded-lg mb-1 transition-all ${
+      className={`flex items-center gap-2 py-1.5 px-2 rounded-lg mb-1 transition-all duration-300 ${
         locked ? 'opacity-40' : done ? 'opacity-70' : ''
-      }`}
+      } ${justUnlocked ? 'ring-1 ring-[var(--color-green-light)] bg-[var(--color-green-faded)]' : ''}`}
+      style={{
+        // Indent dependent tasks with a left border for visual hierarchy
+        ...(hasDependency ? {
+          marginLeft: '12px',
+          borderLeft: `2px solid ${locked ? 'var(--color-gray-300)' : 'var(--color-green-light)'}`,
+          paddingLeft: '10px',
+        } : {}),
+      }}
     >
       <button
         onClick={onToggle}
-        disabled={locked}
+        disabled={locked || isPending}
         className={`w-5 h-5 rounded-md border-2 flex items-center justify-center cursor-pointer bg-transparent shrink-0 transition-colors ${
           done
             ? 'border-[var(--color-green-main)] bg-[var(--color-green-main)]'
@@ -133,8 +207,11 @@ function TaskRow({ task, locked, onToggle, onNavigate }: {
             : 'border-[var(--color-border)] hover:border-[var(--color-green-main)]'
         }`}
       >
-        {done && <span className="text-white text-[11px]">✓</span>}
-        {locked && <span className="text-[9px]">🔒</span>}
+        {done && <span className="text-white text-[11px]">&#10003;</span>}
+        {locked && !done && <span className="text-[9px]">&#128274;</span>}
+        {isPending && !done && (
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-[var(--color-green-main)] border-t-transparent animate-spin" />
+        )}
       </button>
 
       <div className="flex-1 min-w-0">
@@ -143,6 +220,12 @@ function TaskRow({ task, locked, onToggle, onNavigate }: {
         </span>
         {task.description && (
           <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">{task.description}</p>
+        )}
+        {/* Show what this task unlocks */}
+        {unlockNames.length > 0 && !done && !locked && (
+          <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5 italic">
+            unlocks: {unlockNames.join(', ')}
+          </p>
         )}
       </div>
 
@@ -153,7 +236,7 @@ function TaskRow({ task, locked, onToggle, onNavigate }: {
         disabled={locked}
         className="px-2 py-0.5 rounded-md border border-[var(--color-border)] text-[10px] font-semibold cursor-pointer bg-transparent text-[var(--color-green-main)] hover:bg-[var(--color-green-faded)] whitespace-nowrap shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Open →
+        Open
       </button>
     </div>
   )

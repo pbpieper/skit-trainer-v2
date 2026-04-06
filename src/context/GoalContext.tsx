@@ -11,6 +11,7 @@ interface GoalContextValue {
   allGoals: LearningGoal[]
   todayTasks: DailyTask[]
   streak: SkitStreak | null
+  pendingCompletions: Set<string>
   createGoal: (targetDate: string) => Promise<void>
   deleteGoal: () => Promise<void>
   completeTask: (taskId: string) => Promise<void>
@@ -24,6 +25,7 @@ const GoalCtx = createContext<GoalContextValue>({
   allGoals: [],
   todayTasks: [],
   streak: null,
+  pendingCompletions: new Set(),
   createGoal: async () => {},
   deleteGoal: async () => {},
   completeTask: async () => {},
@@ -45,6 +47,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   const [allGoals, setAllGoals] = useState<LearningGoal[]>([])
   const [todayTasks, setTodayTasks] = useState<DailyTask[]>([])
   const [streak, setStreak] = useState<SkitStreak | null>(null)
+  const [pendingCompletions, setPendingCompletions] = useState<Set<string>>(new Set())
 
   const today = new Date().toISOString().slice(0, 10)
   const currentSkit = skitLibrary.find(s => s.id === currentSkitId)
@@ -113,20 +116,46 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   }, [currentGoal, goalService])
 
   const completeTaskFn = useCallback(async (taskId: string) => {
-    const task = await taskService.completeTask(taskId)
-    setTodayTasks(prev => prev.map(t => t.id === taskId ? task : t))
+    // Optimistically update UI immediately
+    const now = new Date().toISOString()
+    setTodayTasks(prev => prev.map(t => t.id === taskId ? { ...t, completedAt: now } : t))
+    setPendingCompletions(prev => new Set(prev).add(taskId))
 
-    // Check if all tasks for this skit today are done → update streak
-    const allDone = todayTasks.every(t => t.id === taskId ? true : t.completedAt !== null)
-    if (allDone && user) {
-      const updated = await taskService.updateStreak(user.id, currentSkitId)
-      setStreak(updated)
+    try {
+      const task = await taskService.completeTask(taskId)
+      // Reconcile with the real result from service
+      setTodayTasks(prev => prev.map(t => t.id === taskId ? task : t))
+
+      // Check if all tasks for this skit today are done -> update streak
+      const allDone = todayTasks.every(t => t.id === taskId ? true : t.completedAt !== null)
+      if (allDone && user) {
+        const updated = await taskService.updateStreak(user.id, currentSkitId)
+        setStreak(updated)
+      }
+    } finally {
+      setPendingCompletions(prev => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
+      })
     }
   }, [taskService, todayTasks, user, currentSkitId])
 
   const uncompleteTaskFn = useCallback(async (taskId: string) => {
-    const task = await taskService.uncompleteTask(taskId)
-    setTodayTasks(prev => prev.map(t => t.id === taskId ? task : t))
+    // Optimistically update UI immediately
+    setTodayTasks(prev => prev.map(t => t.id === taskId ? { ...t, completedAt: null } : t))
+    setPendingCompletions(prev => new Set(prev).add(taskId))
+
+    try {
+      const task = await taskService.uncompleteTask(taskId)
+      setTodayTasks(prev => prev.map(t => t.id === taskId ? task : t))
+    } finally {
+      setPendingCompletions(prev => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
+      })
+    }
   }, [taskService])
 
   const isTaskLocked = useCallback((task: DailyTask) => {
@@ -143,6 +172,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
       allGoals,
       todayTasks,
       streak,
+      pendingCompletions,
       createGoal: createGoalFn,
       deleteGoal: deleteGoalFn,
       completeTask: completeTaskFn,
