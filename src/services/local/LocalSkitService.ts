@@ -12,7 +12,9 @@ export class LocalSkitService implements ISkitService {
       this.saveAll(SEED_SKITS)
       return SEED_SKITS
     }
-    return JSON.parse(raw) as Skit[]
+    // Migrate: ensure all skits have tags array
+    const skits = JSON.parse(raw) as Skit[]
+    return skits.map(s => ({ ...s, tags: s.tags ?? [] }))
   }
 
   private saveAll(skits: Skit[]): void {

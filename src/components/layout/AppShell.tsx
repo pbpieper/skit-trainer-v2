@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
 import { useSkitContext } from '@/context/SkitContext'
+import { useGoal } from '@/context/GoalContext'
 import { useTheme } from '@/design/theme'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useSessionTracker } from '@/hooks/useSessionTracker'
@@ -8,6 +9,8 @@ import { METHODS } from '@/data/methods'
 import { TabBar } from '@/components/molecules/TabBar'
 import { SkitSwitcher } from '@/components/molecules/SkitSwitcher'
 import { SkitImporter } from '@/components/molecules/SkitImporter'
+import { GoalSetter } from '@/components/molecules/GoalSetter'
+import { DailyTodos } from '@/components/molecules/DailyTodos'
 import { StudyPlan } from '@/components/tools/StudyPlan'
 import { ReadMode } from '@/components/tools/ReadMode'
 import { FillMode } from '@/components/tools/FillMode'
@@ -53,6 +56,7 @@ function ToolContent({ toolId }: { toolId: ToolId }) {
 export function AppShell() {
   const { activeTool, setActiveTool, visited, currentSkitId, setCurrentSkitId, skitLibrary, refreshLibrary } = useApp()
   const { skitTitle, skitSubtitle } = useSkitContext()
+  const { streak } = useGoal()
   const { isDark, toggle } = useTheme()
   const [importerOpen, setImporterOpen] = useState(false)
 
@@ -71,7 +75,12 @@ export function AppShell() {
               <h1 className="text-[22px] font-extrabold text-[var(--color-green-dark)] m-0">Skit Trainer</h1>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">{skitSubtitle}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              {streak && streak.currentStreak > 0 && (
+                <span className="px-2 py-1 rounded-lg text-[11px] font-bold text-[var(--color-pink)]">
+                  🔥 {streak.currentStreak}
+                </span>
+              )}
               <button onClick={() => setActiveTool('dashboard')}
                 className="px-3 py-1.5 rounded-lg border text-xs cursor-pointer font-semibold"
                 style={{
@@ -104,6 +113,12 @@ export function AppShell() {
             onAddClick={() => setImporterOpen(true)}
           />
         )}
+
+        {/* Goal Setter (only for starred skits) */}
+        <GoalSetter />
+
+        {/* Daily To-dos (when goal exists) */}
+        <DailyTodos onNavigate={setActiveTool} />
 
         {/* Study Plan */}
         <StudyPlan onNavigate={setActiveTool} />

@@ -46,6 +46,7 @@ export interface Skit {
   chunks: Chunk[]
   palaceImages: string[]
   macroSections: MacroSection[]
+  tags: string[]
   createdAt: string
   updatedAt: string
   createdBy?: string

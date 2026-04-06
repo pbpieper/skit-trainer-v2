@@ -85,5 +85,6 @@ export function parseSkitFromText(raw: string, options?: ParseOptions): Omit<Ski
     chunks,
     palaceImages: [],
     macroSections,
+    tags: [],
   }
 }

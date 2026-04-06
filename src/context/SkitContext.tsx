@@ -15,6 +15,7 @@ interface SkitContextValue {
   skitTitle: string
   skitSubtitle: string
   speakers: string[]
+  tags: string[]
 }
 
 const SkitCtx = createContext<SkitContextValue | null>(null)
@@ -76,6 +77,7 @@ export function SkitProvider({ children }: { children: ReactNode }) {
       skitTitle: currentSkit.title,
       skitSubtitle: currentSkit.subtitle,
       speakers: currentSkit.speakers,
+      tags: currentSkit.tags ?? [],
     }
   }, [currentSkit, flatLines, mesoSections, microSections, subChunksMap])
 
