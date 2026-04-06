@@ -46,5 +46,11 @@ skit-trainer-app/
 vocab-lifecycle/
 word-lens/
 
+# Supabase
+supabase/.temp/
+
+# Vercel
+.vercel
+
 # Misc
 vite-env.d.ts
