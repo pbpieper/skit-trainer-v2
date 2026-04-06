@@ -8,6 +8,7 @@ import { SkitProvider } from '@/context/SkitContext'
 import { ProgressProvider } from '@/context/ProgressContext'
 import { GoalProvider } from '@/context/GoalContext'
 import { AppShell } from '@/components/layout/AppShell'
+import { UpdateBanner } from '@/components/molecules/UpdateBanner'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
                 <ProgressProvider>
                   <GoalProvider>
                     <AppShell />
+                    <UpdateBanner />
                     <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
                   </GoalProvider>
                 </ProgressProvider>
