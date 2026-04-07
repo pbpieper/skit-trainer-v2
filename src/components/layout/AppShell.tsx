@@ -1,17 +1,22 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useApp } from '@/context/AppContext'
 import { useSkitContext } from '@/context/SkitContext'
 import { useGoal } from '@/context/GoalContext'
 import { useTheme } from '@/design/theme'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useSessionTracker } from '@/hooks/useSessionTracker'
+import { useServices } from '@/services/ServiceProvider'
 import { METHODS } from '@/data/methods'
+import { SEED_SKITS } from '@/data/skits'
+import { decodeSkitFromUrl } from '@/lib/sharing'
 import { TabBar } from '@/components/molecules/TabBar'
 import { SkitSwitcher } from '@/components/molecules/SkitSwitcher'
 import { SkitImporter } from '@/components/molecules/SkitImporter'
+import { NotesPanel } from '@/components/molecules/NotesPanel'
 import { GoalSetter } from '@/components/molecules/GoalSetter'
 import { DailyTodos } from '@/components/molecules/DailyTodos'
-import { StudyPlan } from '@/components/tools/StudyPlan'
+import { StudyGuide } from '@/components/tools/StudyGuide'
+import { TodayGoal } from '@/components/molecules/TodayGoal'
 import { ReadMode } from '@/components/tools/ReadMode'
 import { FillMode } from '@/components/tools/FillMode'
 import { FreeWriteMode } from '@/components/tools/FreeWriteMode'
@@ -77,23 +82,68 @@ function ToolContent({ toolId }: { toolId: ToolId }) {
     case 'map': return <MapView onNavigate={id => setActiveTool(id)} />
     case 'future': return <FutureMode />
     case 'dashboard': return <Dashboard />
+    case 'studyguide': return <StudyGuide />
     default: return <p>Unknown tool</p>
   }
 }
+
+const SEED_IDS = new Set(SEED_SKITS.map(s => s.id))
 
 export function AppShell() {
   const { activeTool, setActiveTool, visited, currentSkitId, setCurrentSkitId, skitLibrary, refreshLibrary } = useApp()
   const { skitTitle, skitSubtitle, tags } = useSkitContext()
   const { streak } = useGoal()
   const { isDark, toggle } = useTheme()
+  const { skitService } = useServices()
   const [importerOpen, setImporterOpen] = useState(false)
   const [tagHint, setTagHint] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   const handleTagHint = useCallback(() => {
     setActiveTool('read')
     setTagHint(true)
     setTimeout(() => setTagHint(false), 2000)
   }, [setActiveTool])
+
+  // --- Share via URL: check for ?skit= param on mount ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const encoded = params.get('skit')
+    if (!encoded) return
+
+    const skit = decodeSkitFromUrl(encoded)
+    if (!skit) return
+
+    // Import the shared skit
+    skitService.createSkit(skit).then(() => {
+      refreshLibrary()
+      setToast(`Imported shared skit: ${skit.title}`)
+      setTimeout(() => setToast(null), 3000)
+    }).catch(() => {
+      setToast('Failed to import shared skit')
+      setTimeout(() => setToast(null), 3000)
+    })
+
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Delete skit ---
+  const handleDeleteSkit = useCallback(async (id: string) => {
+    if (SEED_IDS.has(id)) return
+    try {
+      await skitService.deleteSkit(id)
+      await refreshLibrary()
+      // If we deleted the current skit, select the first available
+      if (currentSkitId === id && skitLibrary.length > 1) {
+        const next = skitLibrary.find(s => s.id !== id)
+        if (next) setCurrentSkitId(next.id)
+      }
+    } catch {
+      setToast('Failed to delete skit')
+      setTimeout(() => setToast(null), 3000)
+    }
+  }, [skitService, refreshLibrary, currentSkitId, skitLibrary, setCurrentSkitId])
 
   useKeyboardShortcuts({ setActiveTool, skitLibrary, currentSkitId, setCurrentSkitId })
   useSessionTracker()
@@ -107,7 +157,7 @@ export function AppShell() {
         <div className="mb-4">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-[22px] font-extrabold text-[var(--color-green-dark)] m-0">Skit Trainer</h1>
+              <h1 className="text-[22px] font-extrabold text-[var(--color-green-dark)] m-0">Memento</h1>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">{skitSubtitle}</p>
             </div>
             <div className="flex gap-2 items-center">
@@ -146,6 +196,7 @@ export function AppShell() {
             currentId={currentSkitId}
             onSelect={setCurrentSkitId}
             onAddClick={() => setImporterOpen(true)}
+            onDelete={handleDeleteSkit}
           />
         )}
 
@@ -167,8 +218,11 @@ export function AppShell() {
         {/* Daily To-dos (when goal exists) */}
         <DailyTodos onNavigate={setActiveTool} />
 
-        {/* Study Plan */}
-        <StudyPlan onNavigate={setActiveTool} />
+        {/* Today's Goal */}
+        {currentSkitId && <TodayGoal />}
+
+        {/* Notes Panel */}
+        {currentSkitId && <NotesPanel />}
 
         {/* Tab Bar */}
         <TabBar active={activeTool} visited={visited} onSelect={setActiveTool} />
@@ -181,6 +235,13 @@ export function AppShell() {
 
       {/* Importer Modal */}
       <SkitImporter open={importerOpen} onClose={() => setImporterOpen(false)} onCreated={refreshLibrary} />
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-[var(--color-green-dark)] text-white text-sm font-medium shadow-lg z-50">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

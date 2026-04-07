@@ -69,6 +69,38 @@ function deserializeRecallScores(
   return result
 }
 
+/**
+ * Smart merge: union sets, keep higher scores/stats.
+ * Follows the old app's strategy: "newest wins, never deletes, merges progress (higher mastery wins)".
+ */
+function mergeProgress(local: SkitProgress, cloud: SkitProgress): SkitProgress {
+  // Union of mastered chunks
+  const chunkMastered = new Set([...local.chunkMastered, ...cloud.chunkMastered])
+
+  // Union of chain completed
+  const chainCompleted = new Set([...local.chainCompleted, ...cloud.chainCompleted])
+
+  // Recall scores: keep the better grade per chunk
+  // Grade hierarchy: perfect > good > partial > missed > (none)
+  const gradeRank: Record<string, number> = { missed: 1, partial: 2, good: 3, perfect: 4 }
+  const recallScores: Record<number, string> = { ...cloud.recallScores }
+  for (const [key, value] of Object.entries(local.recallScores)) {
+    const k = Number(key)
+    const existing = recallScores[k]
+    if (!existing || (gradeRank[value] ?? 0) > (gradeRank[existing] ?? 0)) {
+      recallScores[k] = value
+    }
+  }
+
+  // Flashcard stats: keep the higher count
+  const flashcardStats = {
+    correct: Math.max(local.flashcardStats.correct, cloud.flashcardStats.correct),
+    wrong: Math.max(local.flashcardStats.wrong, cloud.flashcardStats.wrong),
+  }
+
+  return { chunkMastered, recallScores, chainCompleted, flashcardStats }
+}
+
 export class SupabaseProgressService implements IProgressService {
   async getProgress(userId: string, skitId: string): Promise<SkitProgress> {
     const { data, error } = await supabase
@@ -83,12 +115,37 @@ export class SupabaseProgressService implements IProgressService {
     return rowToProgress(data as ProgressRow)
   }
 
+  /**
+   * Smart sync merge: never lose progress.
+   * - chunkMastered: union of local + cloud sets
+   * - recallScores: keep the higher/better score per chunk
+   * - chainCompleted: union of local + cloud sets
+   * - flashcardStats: keep the higher count for each stat
+   */
   async saveProgress(
     userId: string,
     skitId: string,
     progress: SkitProgress
   ): Promise<void> {
-    const row = progressToRow(userId, skitId, progress)
+    // Try to fetch existing cloud progress for merge
+    let merged = progress
+    try {
+      const { data: existing } = await supabase
+        .from('progress')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('skit_id', skitId)
+        .maybeSingle()
+
+      if (existing) {
+        const cloud = rowToProgress(existing as ProgressRow)
+        merged = mergeProgress(progress, cloud)
+      }
+    } catch {
+      // If fetch fails (offline), just save what we have — the queue will retry
+    }
+
+    const row = progressToRow(userId, skitId, merged)
 
     writeQueue.enqueue({
       table: 'progress',

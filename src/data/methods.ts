@@ -16,6 +16,7 @@ export const METHODS: ToolDef[] = [
   { id: 'editor', label: 'Editor', icon: '✂️' },
   { id: 'map', label: 'Map', icon: '🗺️' },
   { id: 'future', label: 'Future', icon: '🔮' },
+  { id: 'studyguide', label: 'Guide', icon: '📋' },
 ]
 
 export interface ToolCombo {

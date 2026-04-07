@@ -1,5 +1,5 @@
 /**
- * Creative Hub API client — connects Skit Trainer to the local AI backend.
+ * Creative Hub API client — connects Memento to the local AI backend.
  *
  * Backend: FastAPI at http://localhost:8420
  * Source: ~/Projects/creative-hub/
