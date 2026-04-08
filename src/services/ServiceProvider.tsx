@@ -49,30 +49,19 @@ function isSupabaseConfigured(): boolean {
 }
 
 export function ServiceProvider({ children }: { children: ReactNode }) {
-  const services = useMemo<Services>(() => {
-    if (isSupabaseConfigured()) {
-      return {
-        skitService: new SupabaseSkitService(),
-        progressService: new SupabaseProgressService(),
-        userService: new SupabaseUserService(),
-        starService: new SupabaseStarService(),
-        goalService: new SupabaseGoalService(),
-        taskService: new SupabaseTaskService(),
-        isOnline: true,
-      }
-    }
-
-    // Fallback: local/offline implementations
-    return {
-      skitService: new LocalSkitService(),
-      progressService: new ApiProgressService(),
-      userService: new LocalUserService(),
-      starService: new LocalStarService(),
-      goalService: new LocalGoalService(),
-      taskService: new LocalTaskService(),
-      isOnline: false,
-    }
-  }, [])
+  // Local-first: use localStorage services for all user data.
+  // Supabase is available for shared/public features (UpdateBanner, patch notes)
+  // and will be wired for user data once auth UI is added.
+  // When auth is ready, swap to Supabase services for authenticated users.
+  const services = useMemo<Services>(() => ({
+    skitService: new LocalSkitService(),
+    progressService: new ApiProgressService(),
+    userService: new LocalUserService(),
+    starService: new LocalStarService(),
+    goalService: new LocalGoalService(),
+    taskService: new LocalTaskService(),
+    isOnline: isSupabaseConfigured(),
+  }), [])
 
   return (
     <ServiceContext.Provider value={services}>

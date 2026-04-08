@@ -20,9 +20,25 @@ interface SkitContextValue {
 
 const SkitCtx = createContext<SkitContextValue | null>(null)
 
-export function useSkitContext() {
+export function useSkitContext(): SkitContextValue {
   const ctx = useContext(SkitCtx)
-  if (!ctx) throw new Error('useSkitContext must be used within SkitProvider')
+  if (!ctx) {
+    // Return safe defaults when no skit is selected (e.g. empty library)
+    return {
+      chunks: [],
+      flatLines: [],
+      macroSections: [],
+      mesoSections: [],
+      microSections: [],
+      subChunksMap: {},
+      palaceImages: [],
+      skitId: '',
+      skitTitle: '',
+      skitSubtitle: '',
+      speakers: [],
+      tags: [],
+    }
+  }
   return ctx
 }
 
@@ -80,8 +96,6 @@ export function SkitProvider({ children }: { children: ReactNode }) {
       tags: currentSkit.tags ?? [],
     }
   }, [currentSkit, flatLines, mesoSections, microSections, subChunksMap])
-
-  if (!value) return null
 
   return (
     <SkitCtx.Provider value={value}>
