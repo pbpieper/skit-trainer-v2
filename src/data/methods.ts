@@ -1,23 +1,82 @@
 import type { ToolId, ToolDef } from '@/types/tools'
 
-export const METHODS: ToolDef[] = [
-  { id: 'read', label: 'Read', icon: '📖' },
-  { id: 'fill', label: 'Fill Blank', icon: '✏️' },
-  { id: 'freewrite', label: 'Free Write', icon: '📝' },
-  { id: 'firstletter', label: 'First Letters', icon: '🔤' },
-  { id: 'chunk', label: 'Chunk', icon: '🧱' },
-  { id: 'flashcard', label: 'Flashcards', icon: '🃏' },
-  { id: 'cue', label: 'Cue Lines', icon: '🎭' },
-  { id: 'rsvp', label: 'RSVP', icon: '⚡' },
-  { id: 'chain', label: 'Chain', icon: '🔗' },
-  { id: 'recall', label: 'Recall', icon: '🧠' },
-  { id: 'loci', label: 'Palace', icon: '🏛️' },
-  { id: 'perform', label: 'Perform', icon: '🎬' },
-  { id: 'editor', label: 'Editor', icon: '✂️' },
-  { id: 'map', label: 'Map', icon: '🗺️' },
-  { id: 'future', label: 'Future', icon: '🔮' },
-  { id: 'studyguide', label: 'Guide', icon: '📋' },
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tool Categories — condensed grouping for the TabBar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export interface ToolCategory {
+  id: string
+  label: string
+  icon: string
+  description: string
+  tools: ToolDef[]
+}
+
+export const TOOL_CATEGORIES: ToolCategory[] = [
+  {
+    id: 'learn',
+    label: 'Learn',
+    icon: '📖',
+    description: 'Read, understand, and encode the material',
+    tools: [
+      { id: 'read', label: 'Read', icon: '📖' },
+      { id: 'rsvp', label: 'Speed Read', icon: '⚡' },
+      { id: 'chunk', label: 'Chunk', icon: '🧱' },
+    ],
+  },
+  {
+    id: 'practice',
+    label: 'Practice',
+    icon: '✏️',
+    description: 'Active recall and retrieval drills',
+    tools: [
+      { id: 'fill', label: 'Fill Blank', icon: '✏️' },
+      { id: 'firstletter', label: 'First Letters', icon: '🔤' },
+      { id: 'freewrite', label: 'Free Write', icon: '📝' },
+      { id: 'flashcard', label: 'Flashcards', icon: '🃏' },
+    ],
+  },
+  {
+    id: 'connect',
+    label: 'Connect',
+    icon: '🔗',
+    description: 'Build sequences and associations',
+    tools: [
+      { id: 'chain', label: 'Chain', icon: '🔗' },
+      { id: 'cue', label: 'Cue Lines', icon: '🎭' },
+      { id: 'recall', label: 'Recall', icon: '🧠' },
+      { id: 'loci', label: 'Palace', icon: '🏛️' },
+    ],
+  },
+  {
+    id: 'perform',
+    label: 'Perform',
+    icon: '🎬',
+    description: 'Stage-ready rehearsal',
+    tools: [
+      { id: 'perform', label: 'Perform', icon: '🎬' },
+    ],
+  },
+  {
+    id: 'meta',
+    label: 'More',
+    icon: '⚙️',
+    description: 'Planning, analytics, and utilities',
+    tools: [
+      { id: 'studyguide', label: 'Study Guide', icon: '📋' },
+      { id: 'editor', label: 'Editor', icon: '✂️' },
+      { id: 'map', label: 'Map', icon: '🗺️' },
+      { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    ],
+  },
 ]
+
+/** Flat list of all tools across categories */
+export const METHODS: ToolDef[] = TOOL_CATEGORIES.flatMap(c => c.tools)
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tool Combos (legacy — used by MapView)
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 export interface ToolCombo {
   id: string
@@ -38,6 +97,10 @@ export const TOOL_COMBOS: ToolCombo[] = [
   { id: 'perform', label: 'Performance Pack', desc: 'Stage-ready — perform, first letters, speed',
     tools: ['perform', 'firstletter', 'rsvp'], phase: 'transfer', orbit: 4 },
 ]
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Science entries
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 export interface ScienceEntry {
   name: string

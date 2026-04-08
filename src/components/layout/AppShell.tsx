@@ -10,12 +10,11 @@ import { METHODS } from '@/data/methods'
 import { SEED_SKITS } from '@/data/skits'
 import { decodeSkitFromUrl } from '@/lib/sharing'
 import { TabBar } from '@/components/molecules/TabBar'
-import { SkitSwitcher } from '@/components/molecules/SkitSwitcher'
+import { LibraryView } from '@/components/molecules/LibraryView'
 import { SkitImporter } from '@/components/molecules/SkitImporter'
 import { NotesPanel } from '@/components/molecules/NotesPanel'
 import { GoalSetter } from '@/components/molecules/GoalSetter'
 import { DailyTodos } from '@/components/molecules/DailyTodos'
-import { StudyGuide } from '@/components/tools/StudyGuide'
 import { TodayGoal } from '@/components/molecules/TodayGoal'
 import { ReadMode } from '@/components/tools/ReadMode'
 import { FillMode } from '@/components/tools/FillMode'
@@ -33,35 +32,9 @@ import { EditorMode } from '@/components/tools/EditorMode'
 import { MapView } from '@/components/tools/MapView'
 import { FutureMode } from '@/components/tools/FutureMode'
 import { Dashboard } from '@/components/tools/Dashboard'
+import { StudyGuide } from '@/components/tools/StudyGuide'
 import type { ToolId } from '@/types/tools'
-
-/** Compact read-only tag display for the AppShell */
-function TagBar({ tags, onHint }: { tags: string[]; onHint: () => void }) {
-  if (tags.length === 0) return null
-
-  return (
-    <div
-      className="flex flex-wrap gap-1 mb-2 cursor-pointer"
-      onClick={onHint}
-      title="Edit tags in Read mode"
-    >
-      {tags.map(tag => (
-        <span
-          key={tag}
-          className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium"
-          style={{
-            background: 'var(--color-green-faded)',
-            color: 'var(--color-green-dark)',
-            border: '1px solid var(--color-green-light)',
-            lineHeight: 1.3,
-          }}
-        >
-          {tag}
-        </span>
-      ))}
-    </div>
-  )
-}
+import type { Skit } from '@/types/skit'
 
 function ToolContent({ toolId }: { toolId: ToolId }) {
   const { setActiveTool } = useApp()
@@ -87,23 +60,14 @@ function ToolContent({ toolId }: { toolId: ToolId }) {
   }
 }
 
-const SEED_IDS = new Set(SEED_SKITS.map(s => s.id))
-
 export function AppShell() {
   const { activeTool, setActiveTool, visited, currentSkitId, setCurrentSkitId, skitLibrary, refreshLibrary } = useApp()
   const { skitTitle, skitSubtitle, tags } = useSkitContext()
   const { streak } = useGoal()
   const { isDark, toggle } = useTheme()
   const { skitService } = useServices()
+  const [view, setView] = useState<'library' | 'practice'>('practice')
   const [importerOpen, setImporterOpen] = useState(false)
-  const [tagHint, setTagHint] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-
-  const handleTagHint = useCallback(() => {
-    setActiveTool('read')
-    setTagHint(true)
-    setTimeout(() => setTagHint(false), 2000)
-  }, [setActiveTool])
 
   // --- Share via URL: check for ?skit= param on mount ---
   useEffect(() => {
@@ -114,39 +78,22 @@ export function AppShell() {
     const skit = decodeSkitFromUrl(encoded)
     if (!skit) return
 
-    // Import the shared skit
     skitService.createSkit(skit).then(() => {
       refreshLibrary()
-      setToast(`Imported shared skit: ${skit.title}`)
-      setTimeout(() => setToast(null), 3000)
     }).catch(() => {
-      setToast('Failed to import shared skit')
-      setTimeout(() => setToast(null), 3000)
+      // silent
     })
 
-    // Clean URL
     window.history.replaceState({}, '', window.location.pathname)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // --- Delete skit ---
-  const handleDeleteSkit = useCallback(async (id: string) => {
-    if (SEED_IDS.has(id)) return
-    try {
-      await skitService.deleteSkit(id)
-      await refreshLibrary()
-      // If we deleted the current skit, select the first available
-      if (currentSkitId === id && skitLibrary.length > 1) {
-        const next = skitLibrary.find(s => s.id !== id)
-        if (next) setCurrentSkitId(next.id)
-      }
-    } catch {
-      setToast('Failed to delete skit')
-      setTimeout(() => setToast(null), 3000)
-    }
-  }, [skitService, refreshLibrary, currentSkitId, skitLibrary, setCurrentSkitId])
-
   useKeyboardShortcuts({ setActiveTool, skitLibrary, currentSkitId, setCurrentSkitId })
   useSessionTracker()
+
+  const handleOpenSkit = useCallback((_skit: Skit) => {
+    setView('practice')
+    setActiveTool('read')
+  }, [setActiveTool])
 
   const progress = (visited.size / METHODS.length) * 100
 
@@ -158,7 +105,9 @@ export function AppShell() {
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-[22px] font-extrabold text-[var(--color-green-dark)] m-0">Memento</h1>
-              <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">{skitSubtitle}</p>
+              {view === 'practice' && (
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">{skitSubtitle}</p>
+              )}
             </div>
             <div className="flex gap-2 items-center">
               {streak && streak.currentStreak > 0 && (
@@ -166,82 +115,116 @@ export function AppShell() {
                   🔥 {streak.currentStreak}
                 </span>
               )}
-              <button onClick={() => setActiveTool('dashboard')}
-                className="px-3 py-1.5 rounded-lg border text-xs cursor-pointer font-semibold"
-                style={{
-                  borderColor: activeTool === 'dashboard' ? 'var(--color-green-main)' : 'var(--color-border)',
-                  background: activeTool === 'dashboard' ? 'var(--color-green-faded)' : 'var(--color-surface)',
-                  color: activeTool === 'dashboard' ? 'var(--color-green-dark)' : 'var(--color-text-secondary)',
-                }}>
-                Progress
-              </button>
               <button onClick={toggle}
                 className="px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-xs cursor-pointer text-[var(--color-text-secondary)]">
-                {isDark ? '☀️ Light' : '🌙 Dark'}
+                {isDark ? '☀️' : '🌙'}
               </button>
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="flex-1 h-1 rounded-sm" style={{ background: 'var(--color-gray-200)' }}>
-              <div className="h-1 rounded-sm transition-[width] duration-400" style={{ background: 'var(--color-green-main)', width: `${progress}%` }} />
+
+          {/* View toggle + progress bar */}
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex rounded-lg overflow-hidden border border-[var(--color-border)]">
+              <button
+                onClick={() => setView('library')}
+                className={`px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors border-none ${
+                  view === 'library'
+                    ? 'bg-[var(--color-green-main)] text-white'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-gray-100)]'
+                }`}
+              >
+                📚 Library
+              </button>
+              <button
+                onClick={() => setView('practice')}
+                className={`px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors border-none border-l border-l-[var(--color-border)] ${
+                  view === 'practice'
+                    ? 'bg-[var(--color-green-main)] text-white'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-gray-100)]'
+                }`}
+              >
+                🎯 Practice
+              </button>
             </div>
-            <span className="text-[10px] text-[var(--color-text-secondary)]">{visited.size}/{METHODS.length}</span>
+            {view === 'practice' && (
+              <div className="flex-1 flex items-center gap-2">
+                <div className="flex-1 h-1 rounded-sm" style={{ background: 'var(--color-gray-200)' }}>
+                  <div className="h-1 rounded-sm transition-[width] duration-400" style={{ background: 'var(--color-green-main)', width: `${progress}%` }} />
+                </div>
+                <span className="text-[10px] text-[var(--color-text-secondary)]">{visited.size}/{METHODS.length}</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Skit Switcher */}
-        {skitLibrary.length > 0 && (
-          <SkitSwitcher
-            skits={skitLibrary}
-            currentId={currentSkitId}
-            onSelect={setCurrentSkitId}
-            onAddClick={() => setImporterOpen(true)}
-            onDelete={handleDeleteSkit}
+        {/* ═══════════════════════════════════════════════════════════════
+             LIBRARY VIEW
+           ═══════════════════════════════════════════════════════════════ */}
+        {view === 'library' && (
+          <LibraryView
+            onOpenSkit={handleOpenSkit}
+            onImport={() => setImporterOpen(true)}
           />
         )}
 
-        {/* Compact tag display */}
-        {currentSkitId && tags.length > 0 && (
+        {/* ═══════════════════════════════════════════════════════════════
+             PRACTICE VIEW
+           ═══════════════════════════════════════════════════════════════ */}
+        {view === 'practice' && (
           <>
-            <TagBar tags={tags} onHint={handleTagHint} />
-            {tagHint && (
-              <p className="text-[10px] text-[var(--color-text-muted)] -mt-1 mb-1 ml-0.5">
-                Switched to Read mode — edit tags there
-              </p>
+            {/* Current skit title bar */}
+            {currentSkitId && (
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  onClick={() => setView('library')}
+                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-green-main)] cursor-pointer bg-transparent border-none"
+                >
+                  ← Library
+                </button>
+                <h2 className="text-sm font-bold text-[var(--color-green-dark)] truncate flex-1">
+                  {skitTitle}
+                </h2>
+                {tags.length > 0 && (
+                  <div className="flex gap-1 shrink-0">
+                    {tags.slice(0, 3).map(tag => (
+                      <span
+                        key={tag}
+                        className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-[var(--color-green-faded)] text-[var(--color-green-dark)]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                    {tags.length > 3 && (
+                      <span className="text-[9px] text-[var(--color-text-muted)]">+{tags.length - 3}</span>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
+
+            {/* Goal + Daily Todos */}
+            <GoalSetter />
+            <DailyTodos onNavigate={setActiveTool} />
+
+            {/* Today's Goal */}
+            {currentSkitId && <TodayGoal />}
+
+            {/* Notes Panel */}
+            {currentSkitId && <NotesPanel />}
+
+            {/* Tab Bar (categorized) */}
+            <TabBar active={activeTool} visited={visited} onSelect={setActiveTool} />
+
+            {/* Tool Content */}
+            <div className="p-4.5 border border-[var(--color-border)] rounded-xl min-h-[300px]" style={{ background: 'var(--color-surface)' }}>
+              <ToolContent key={`${currentSkitId}-${activeTool}`} toolId={activeTool} />
+            </div>
           </>
         )}
-
-        {/* Goal Setter (only for starred skits) */}
-        <GoalSetter />
-
-        {/* Daily To-dos (when goal exists) */}
-        <DailyTodos onNavigate={setActiveTool} />
-
-        {/* Today's Goal */}
-        {currentSkitId && <TodayGoal />}
-
-        {/* Notes Panel */}
-        {currentSkitId && <NotesPanel />}
-
-        {/* Tab Bar */}
-        <TabBar active={activeTool} visited={visited} onSelect={setActiveTool} />
-
-        {/* Tool Content — key forces remount on skit or tool change */}
-        <div className="p-4.5 border border-[var(--color-border)] rounded-xl min-h-[300px]" style={{ background: 'var(--color-surface)' }}>
-          <ToolContent key={`${currentSkitId}-${activeTool}`} toolId={activeTool} />
-        </div>
       </div>
 
       {/* Importer Modal */}
       <SkitImporter open={importerOpen} onClose={() => setImporterOpen(false)} onCreated={refreshLibrary} />
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-[var(--color-green-dark)] text-white text-sm font-medium shadow-lg z-50">
-          {toast}
-        </div>
-      )}
     </div>
   )
 }
