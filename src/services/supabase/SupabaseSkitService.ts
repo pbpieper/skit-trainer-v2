@@ -70,6 +70,7 @@ export class SupabaseSkitService implements ISkitService {
     const { data, error } = await supabase
       .from('skits')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -81,6 +82,7 @@ export class SupabaseSkitService implements ISkitService {
       .from('skits')
       .select('*')
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle()
 
     if (error) throw error
@@ -134,14 +136,14 @@ export class SupabaseSkitService implements ISkitService {
   async deleteSkit(id: string): Promise<void> {
     const { error } = await supabase
       .from('skits')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
 
     if (error) {
       writeQueue.enqueue({
         table: 'skits',
-        operation: 'delete',
-        data: {},
+        operation: 'update',
+        data: { deleted_at: new Date().toISOString() },
         match: { id },
       })
     }

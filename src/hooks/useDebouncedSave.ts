@@ -43,17 +43,26 @@ export function useDebouncedSave<T>(
     await doSave()
   }, [doSave])
 
-  // Cleanup on unmount — flush pending saves
+  // Cleanup on unmount — flush pending saves with localStorage backup
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current)
         timerRef.current = null
       }
-      // Fire-and-forget the final save
       if (latestValueRef.current !== null) {
         const value = latestValueRef.current
         latestValueRef.current = null
+        // Write a synchronous backup to localStorage so data survives unmount
+        try {
+          localStorage.setItem(
+            'skit-trainer:debounce-backup',
+            JSON.stringify({ value, savedAt: new Date().toISOString() })
+          )
+        } catch {
+          // localStorage may be unavailable — not fatal
+        }
+        // Still fire the async save (best-effort, component may unmount)
         saveFnRef.current(value).catch(() => {})
       }
     }

@@ -81,6 +81,14 @@ export class WriteQueue {
             `[WriteQueue] Dropping write after ${MAX_RETRIES} retries:`,
             write
           )
+          // Save to dead-letter queue in localStorage
+          try {
+            const deadLetters = JSON.parse(localStorage.getItem('skit-trainer:dead-letters') || '[]')
+            deadLetters.push({ ...write, failedAt: new Date().toISOString(), error: String(err) })
+            localStorage.setItem('skit-trainer:dead-letters', JSON.stringify(deadLetters))
+          } catch {
+            // localStorage may be full or unavailable — not fatal
+          }
         }
       }
     }

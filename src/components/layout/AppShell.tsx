@@ -78,6 +78,14 @@ export function AppShell() {
     const skit = decodeSkitFromUrl(encoded)
     if (!skit) return
 
+    // Dedup: skip if a skit with the same title already exists
+    const existing = skitLibrary.find(s => s.title === skit.title)
+    if (existing) {
+      // Already imported — just clean the URL
+      window.history.replaceState({}, '', window.location.pathname)
+      return
+    }
+
     skitService.createSkit(skit).then(() => {
       refreshLibrary()
     }).catch(() => {
@@ -104,7 +112,7 @@ export function AppShell() {
         <div className="mb-4">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-[22px] font-extrabold text-[var(--color-green-dark)] m-0">Memento</h1>
+              <h1 className="text-[22px] font-extrabold text-[var(--color-green-dark)] m-0">Memoria</h1>
               {view === 'practice' && (
                 <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-0">{skitSubtitle}</p>
               )}

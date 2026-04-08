@@ -108,7 +108,12 @@ export class SupabaseGoalService implements IGoalService {
         data: row,
         match: { id: goalId },
       })
-      throw error
+      // Return a synthetic result instead of rethrowing — the write is queued
+      return {
+        id: goalId,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      } as LearningGoal
     }
 
     return rowToGoal(data as GoalRow)
