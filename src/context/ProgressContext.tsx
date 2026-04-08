@@ -27,7 +27,9 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user || !currentSkitId) return
-    progressService.getProgress(user.id, currentSkitId).then(setProgressState)
+    progressService.getProgress(user.id, currentSkitId).then(setProgressState).catch(e => {
+      console.warn('[ProgressContext] Failed to load progress:', e)
+    })
   }, [user, currentSkitId, progressService])
 
   const setProgress = useCallback((fn: (prev: SkitProgress) => SkitProgress) => {

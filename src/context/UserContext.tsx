@@ -18,7 +18,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
-    userService.getCurrentUser().then(setUser)
+    userService.getCurrentUser().then(setUser).catch(e => {
+      console.warn('[UserContext] Failed to load user:', e)
+    })
   }, [userService])
 
   const updatePreferences = async (prefs: Partial<User['preferences']>) => {

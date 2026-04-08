@@ -25,7 +25,9 @@ export function StarProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return
-    starService.getStarred(user.id).then(ids => setStarred(new Set(ids)))
+    starService.getStarred(user.id).then(ids => setStarred(new Set(ids))).catch(e => {
+      console.warn('[StarContext] Failed to load stars:', e)
+    })
   }, [user, starService])
 
   const toggleStar = useCallback(async (skitId: string) => {

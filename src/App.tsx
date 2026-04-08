@@ -9,27 +9,30 @@ import { ProgressProvider } from '@/context/ProgressContext'
 import { GoalProvider } from '@/context/GoalContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { UpdateBanner } from '@/components/molecules/UpdateBanner'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <ServiceProvider>
-        <UserProvider>
-          <StarProvider>
-            <AppProvider>
-              <SkitProvider>
-                <ProgressProvider>
-                  <GoalProvider>
-                    <AppShell />
-                    <UpdateBanner />
-                    <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
-                  </GoalProvider>
-                </ProgressProvider>
-              </SkitProvider>
-            </AppProvider>
-          </StarProvider>
-        </UserProvider>
-      </ServiceProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <ServiceProvider>
+          <UserProvider>
+            <StarProvider>
+              <AppProvider>
+                <SkitProvider>
+                  <ProgressProvider>
+                    <GoalProvider>
+                      <AppShell />
+                      <UpdateBanner />
+                      <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
+                    </GoalProvider>
+                  </ProgressProvider>
+                </SkitProvider>
+              </AppProvider>
+            </StarProvider>
+          </UserProvider>
+        </ServiceProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

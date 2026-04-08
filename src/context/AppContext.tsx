@@ -29,10 +29,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [visited, setVisited] = useState<Set<ToolId>>(new Set(['read']))
 
   const refreshLibrary = useCallback(async () => {
-    const skits = await skitService.listSkits()
-    setSkitLibrary(skits)
-    if (!currentSkitId && skits.length > 0) {
-      setCurrentSkitId(skits[0].id)
+    try {
+      const skits = await skitService.listSkits()
+      setSkitLibrary(skits)
+      if (!currentSkitId && skits.length > 0) {
+        setCurrentSkitId(skits[0].id)
+      }
+    } catch (e) {
+      console.warn('[AppContext] Failed to load library:', e)
     }
   }, [skitService, currentSkitId])
 

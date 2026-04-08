@@ -55,13 +55,17 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   // Load goals when user/skit changes
   useEffect(() => {
     if (!user) return
-    goalService.getGoals(user.id).then(setAllGoals)
+    goalService.getGoals(user.id).then(setAllGoals).catch(e => {
+      console.warn('[GoalContext] Failed to load goals:', e)
+    })
   }, [user, goalService])
 
   // Load current goal for active skit
   useEffect(() => {
     if (!user || !currentSkitId) return
-    goalService.getGoalForSkit(user.id, currentSkitId).then(setCurrentGoal)
+    goalService.getGoalForSkit(user.id, currentSkitId).then(setCurrentGoal).catch(e => {
+      console.warn('[GoalContext] Failed to load goal for skit:', e)
+    })
   }, [user, currentSkitId, goalService, allGoals])
 
   // Load/generate today's tasks
@@ -91,7 +95,9 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   // Load streak
   useEffect(() => {
     if (!user || !currentSkitId) return
-    taskService.getStreak(user.id, currentSkitId).then(setStreak)
+    taskService.getStreak(user.id, currentSkitId).then(setStreak).catch(e => {
+      console.warn('[GoalContext] Failed to load streak:', e)
+    })
   }, [user, currentSkitId, taskService])
 
   const createGoalFn = useCallback(async (targetDate: string) => {
