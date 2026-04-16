@@ -37,7 +37,8 @@ CREATE TABLE public.skits (
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   is_seed BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMPTZ  -- soft-delete: NULL = active, set = deleted
 );
 
 -- Progress

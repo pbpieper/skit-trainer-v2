@@ -1,5 +1,6 @@
 import { Toaster } from 'react-hot-toast'
 import { ThemeProvider } from '@/design/theme'
+import { AuthGuard } from '@/components/auth/AuthGuard'
 import { ServiceProvider } from '@/services/ServiceProvider'
 import { UserProvider } from '@/context/UserContext'
 import { StarProvider } from '@/context/StarContext'
@@ -15,23 +16,25 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <ServiceProvider>
-          <UserProvider>
-            <StarProvider>
-              <AppProvider>
-                <SkitProvider>
-                  <ProgressProvider>
-                    <GoalProvider>
-                      <AppShell />
-                      <UpdateBanner />
-                      <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
-                    </GoalProvider>
-                  </ProgressProvider>
-                </SkitProvider>
-              </AppProvider>
-            </StarProvider>
-          </UserProvider>
-        </ServiceProvider>
+        <AuthGuard>
+          <ServiceProvider>
+            <UserProvider>
+              <StarProvider>
+                <AppProvider>
+                  <SkitProvider>
+                    <ProgressProvider>
+                      <GoalProvider>
+                        <AppShell />
+                        <UpdateBanner />
+                        <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
+                      </GoalProvider>
+                    </ProgressProvider>
+                  </SkitProvider>
+                </AppProvider>
+              </StarProvider>
+            </UserProvider>
+          </ServiceProvider>
+        </AuthGuard>
       </ThemeProvider>
     </ErrorBoundary>
   )

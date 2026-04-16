@@ -94,6 +94,14 @@ export class SupabaseSkitService implements ISkitService {
   ): Promise<Skit> {
     const row = skitToRow(input)
 
+    // Set created_by to current auth user if available
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) row.created_by = user.id
+    } catch {
+      // No auth session — allow anonymous creation for local mode
+    }
+
     const { data, error } = await supabase
       .from('skits')
       .insert(row)

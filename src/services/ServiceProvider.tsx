@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react'
 import type {
   ISkitService,
   IProgressService,
@@ -24,6 +24,8 @@ import { SupabaseStarService } from '@/services/supabase/SupabaseStarService'
 import { SupabaseGoalService } from '@/services/supabase/SupabaseGoalService'
 import { SupabaseTaskService } from '@/services/supabase/SupabaseTaskService'
 
+import { isSupabaseAvailable, supabase } from '@/services/supabase/client'
+
 export interface Services {
   skitService: ISkitService
   progressService: IProgressService
@@ -42,26 +44,57 @@ export function useServices(): Services {
   return ctx
 }
 
-/** Returns true when Supabase env vars are configured */
-function isSupabaseConfigured(): boolean {
-  const url = import.meta.env.VITE_SUPABASE_URL
-  return typeof url === 'string' && url.trim().length > 0
-}
-
-export function ServiceProvider({ children }: { children: ReactNode }) {
-  // Local-first: use localStorage services for all user data.
-  // Supabase is available for shared/public features (UpdateBanner, patch notes)
-  // and will be wired for user data once auth UI is added.
-  // When auth is ready, swap to Supabase services for authenticated users.
-  const services = useMemo<Services>(() => ({
+function createLocalServices(): Services {
+  return {
     skitService: new LocalSkitService(),
     progressService: new ApiProgressService(),
     userService: new LocalUserService(),
     starService: new LocalStarService(),
     goalService: new LocalGoalService(),
     taskService: new LocalTaskService(),
-    isOnline: isSupabaseConfigured(),
-  }), [])
+    isOnline: false,
+  }
+}
+
+function createSupabaseServices(): Services {
+  return {
+    skitService: new SupabaseSkitService(),
+    progressService: new SupabaseProgressService(),
+    userService: new SupabaseUserService(),
+    starService: new SupabaseStarService(),
+    goalService: new SupabaseGoalService(),
+    taskService: new SupabaseTaskService(),
+    isOnline: true,
+  }
+}
+
+export function ServiceProvider({ children }: { children: ReactNode }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  useEffect(() => {
+    if (!isSupabaseAvailable) return
+
+    // Check initial auth state
+    supabase.auth.getSession().then(({ data }) => {
+      setIsAuthenticated(!!data.session)
+    })
+
+    // Listen for auth changes so services swap live on login/logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const services = useMemo<Services>(() => {
+    // Supabase configured + user authenticated → cloud services
+    if (isSupabaseAvailable && isAuthenticated) {
+      return createSupabaseServices()
+    }
+    // Otherwise → local services (works offline, no env vars, or not logged in)
+    return createLocalServices()
+  }, [isAuthenticated])
 
   return (
     <ServiceContext.Provider value={services}>
