@@ -6,6 +6,8 @@ import { getLinesForGranularity } from '@/lib/helpers'
 import { colors } from '@/design/tokens'
 import clsx from 'clsx'
 
+type AttemptStatus = 'unanswered' | 'wrong-first' | 'wrong-second' | 'revealed' | 'correct'
+
 const HINT_TYPES = [
   { id: 'wordcount', label: 'Word Length', desc: 'Shows character count per blank', icon: '#️⃣' },
   { id: 'firstletter', label: 'First Letter', desc: 'Shows first letter of each blank', icon: '🔤' },
@@ -35,6 +37,7 @@ export function FillMode() {
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [checked, setChecked] = useState(false)
   const [revealed, setRevealed] = useState<Set<number>>(new Set())
+  const [attemptCounts, setAttemptCounts] = useState<Record<number, number>>({})
   const inputRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
   const lines = useMemo(() => getLinesForGranularity(granularity, section, flatLines, macroSections), [granularity, section, flatLines, macroSections])
@@ -62,7 +65,26 @@ export function FillMode() {
   const normalize = (s: string) => (s || '').trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
   const isCorrect = (idx: number) => normalize(tokens[idx].word) === normalize(answers[idx] || '')
 
-  const regenerate = () => { setGen(g => g + 1); setAnswers({}); setChecked(false); setRevealed(new Set()) }
+  const getAttemptStatus = (idx: number): AttemptStatus => {
+    if (revealed.has(idx)) return 'revealed'
+    if (!checked) return 'unanswered'
+    if (!answers[idx]) return 'unanswered'
+    if (isCorrect(idx)) return 'correct'
+    const attempts = attemptCounts[idx] || 0
+    return attempts >= 1 ? 'wrong-second' : 'wrong-first'
+  }
+
+  const handleRetry = (idx: number) => {
+    const attempts = attemptCounts[idx] || 0
+    if (attempts === 0) {
+      setAttemptCounts(c => ({ ...c, [idx]: 1 }))
+      setAnswers(a => ({ ...a, [idx]: '' }))
+    } else if (attempts === 1) {
+      setRevealed(r => new Set([...r, idx]))
+    }
+  }
+
+  const regenerate = () => { setGen(g => g + 1); setAnswers({}); setChecked(false); setRevealed(new Set()); setAttemptCounts({}) }
 
   const handleGranularityChange = (g: string) => { setGranularity(g); regenerate() }
   const handleSectionChange = (s: string) => { setSection(s); regenerate() }
@@ -78,9 +100,13 @@ export function FillMode() {
 
   const stats = useMemo(() => {
     if (!checked) return null
-    let correct = 0, wrong = 0
-    blankKeys.forEach(idx => { if (revealed.has(idx)) return; if (answers[idx] && isCorrect(idx)) correct++; else if (answers[idx]) wrong++ })
-    return { correct, wrong, total: blankKeys.length }
+    let correct = 0, wrong = 0, revealed_count = 0
+    blankKeys.forEach(idx => {
+      if (revealed.has(idx)) { revealed_count++; return }
+      if (answers[idx] && isCorrect(idx)) correct++
+      else if (answers[idx]) wrong++
+    })
+    return { correct, wrong, revealed: revealed_count, total: blankKeys.length }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checked, answers, blankKeys, revealed])
 
@@ -183,7 +209,7 @@ export function FillMode() {
       {/* Results */}
       {stats && (
         <div className="p-3 bg-[var(--color-green-faded)] rounded-xl border border-[var(--color-green-bright)] text-xs mb-3">
-          <strong className="text-[var(--color-green-dark)]">Results:</strong> {stats.correct} correct, {stats.wrong} wrong, {stats.total - stats.correct - stats.wrong} blank ({Math.round((stats.correct / stats.total) * 100)}%)
+          <strong className="text-[var(--color-green-dark)]">Results:</strong> {stats.correct} correct, {stats.wrong} wrong, {stats.revealed} revealed ({Math.round((stats.correct / stats.total) * 100)}%)
         </div>
       )}
 
@@ -194,21 +220,61 @@ export function FillMode() {
             const isBlanked = blankSet.has(i)
             const answer = answers[i]
             const isRev = revealed.has(i)
+            const status = getAttemptStatus(i)
+
             let bgColor = 'var(--color-surface)'
-            if (isRev) bgColor = colors.pinkFaded
-            else if (checked && answer && isCorrect(i)) bgColor = colors.greenFaded
-            else if (checked && answer && !isCorrect(i)) bgColor = '#FEE2E2'
+            let borderColor = 'border-[var(--color-gray-300)]'
+            let disabled = false
+
+            if (isRev) {
+              bgColor = 'var(--color-green-faded)'
+              borderColor = 'border-[var(--color-green-main)]'
+              disabled = true
+            } else if (checked && answer && isCorrect(i)) {
+              bgColor = 'var(--color-green-faded)'
+              borderColor = 'border-[var(--color-green-main)]'
+              disabled = true
+            } else if (checked && answer && !isCorrect(i)) {
+              bgColor = '#FEE2E2'
+              borderColor = status === 'wrong-second' ? 'border-[var(--color-pink)]' : 'border-[#EF4444]'
+            }
+
             return (
-              <div key={i} className="inline-block mr-0.5 mb-0.5">
+              <div key={i} className="inline-block mr-0.5 mb-0.5 relative group">
                 {isBlanked ? (
-                  <input
-                    ref={el => { inputRefs.current[i] = el }}
-                    type="text" value={answer || ''} onChange={e => setAnswers(a => ({ ...a, [i]: e.target.value }))}
-                    onKeyDown={e => handleKey(e, i)}
-                    placeholder={getHint(i)}
-                    className="w-[45px] px-1 py-0.5 rounded border border-[var(--color-gray-300)] text-[11px] text-center outline-none"
-                    style={{ background: bgColor }}
-                  />
+                  <>
+                    <input
+                      ref={el => { inputRefs.current[i] = el }}
+                      type="text"
+                      value={isRev ? t.word : (answer || '')}
+                      onChange={e => !disabled && setAnswers(a => ({ ...a, [i]: e.target.value }))}
+                      onKeyDown={e => handleKey(e, i)}
+                      placeholder={getHint(i)}
+                      disabled={disabled}
+                      className={clsx(
+                        'w-[45px] px-1 py-0.5 rounded border text-[11px] text-center outline-none transition-all',
+                        borderColor,
+                        disabled && 'cursor-not-allowed opacity-70',
+                        status === 'wrong-first' && checked && 'animate-shake'
+                      )}
+                      style={{ background: bgColor }}
+                    />
+                    {/* Retry button for wrong answers */}
+                    {checked && answer && !isCorrect(i) && (
+                      <button
+                        onClick={() => handleRetry(i)}
+                        className={clsx(
+                          'absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity',
+                          'text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border',
+                          status === 'wrong-first'
+                            ? 'border-[#EF4444] text-[#EF4444] hover:bg-[#FEE2E2]'
+                            : 'border-[var(--color-pink)] text-[var(--color-pink)] hover:bg-[var(--color-pink-faded)]'
+                        )}
+                      >
+                        {status === 'wrong-first' ? 'Retry' : 'Reveal'}
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <span className="px-1 py-0.5 text-[11px] text-[var(--color-gray-600)]">{t.word}</span>
                 )}
@@ -217,6 +283,18 @@ export function FillMode() {
           })}
         </div>
       </div>
+
+      {/* Add CSS for shake animation */}
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-2px); }
+          75% { transform: translateX(2px); }
+        }
+        .animate-shake {
+          animation: shake 0.3s ease-in-out;
+        }
+      `}</style>
     </div>
   )
 }

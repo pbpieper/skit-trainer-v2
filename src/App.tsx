@@ -8,6 +8,7 @@ import { AppProvider } from '@/context/AppContext'
 import { SkitProvider } from '@/context/SkitContext'
 import { ProgressProvider } from '@/context/ProgressContext'
 import { GoalProvider } from '@/context/GoalContext'
+import { LadderProvider } from '@/context/LadderContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { UpdateBanner } from '@/components/molecules/UpdateBanner'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -24,9 +25,11 @@ export default function App() {
                   <SkitProvider>
                     <ProgressProvider>
                       <GoalProvider>
-                        <AppShell />
-                        <UpdateBanner />
-                        <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
+                        <LadderProvider>
+                          <AppShell />
+                          <UpdateBanner />
+                          <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
+                        </LadderProvider>
                       </GoalProvider>
                     </ProgressProvider>
                   </SkitProvider>

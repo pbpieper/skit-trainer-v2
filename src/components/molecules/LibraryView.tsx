@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useApp } from '@/context/AppContext'
 import { useStar } from '@/context/StarContext'
 import { useServices } from '@/services/ServiceProvider'
+import { InlineTags } from '@/components/molecules/InlineTags'
 import { SEED_SKITS } from '@/data/skits'
 import { buildShareUrl } from '@/lib/sharing'
 import { loadGuideProgress } from '@/components/tools/StudyGuide'
@@ -74,6 +75,13 @@ function SkitCard({
   onEdit,
   onShare,
   isStarred,
+  isEditingTitle,
+  onStartEditTitle,
+  onCancelEditTitle,
+  onSaveTitle,
+  editTitle,
+  onEditTitle,
+  onSaveTags,
 }: {
   skit: Skit
   onOpen: (s: Skit) => void
@@ -81,6 +89,13 @@ function SkitCard({
   onEdit: (s: Skit) => void
   onShare: (s: Skit) => void
   isStarred: boolean
+  isEditingTitle: boolean
+  onStartEditTitle: () => void
+  onCancelEditTitle: () => void
+  onSaveTitle: () => Promise<void>
+  editTitle: string
+  onEditTitle: (title: string) => void
+  onSaveTags: (tags: string[]) => Promise<void>
 }) {
   const isSeed = SEED_IDS.has(skit.id)
   const lineCount = skit.chunks.reduce((a, c) => a + c.lines.length, 0)
@@ -105,23 +120,49 @@ function SkitCard({
       {/* Top row: title + actions */}
       <div className="flex justify-between items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-[15px] font-bold text-[var(--color-green-dark)] truncate">
-            {isStarred && <span className="mr-1">⭐</span>}
-            {skit.title}
-          </h3>
-          <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 truncate">{skit.subtitle}</p>
-          {skit.tags && skit.tags.length > 0 && (
-            <div className="flex gap-1 flex-wrap mt-1.5">
-              {skit.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="text-[10px] font-semibold px-[7px] py-[2px] rounded-lg bg-[var(--color-pink-faded,#fce4ec)] text-[var(--color-pink-dark,#880e4f)] border border-[var(--color-pink-mid,#f48fb1)]"
-                >
-                  {tag}
-                </span>
-              ))}
+          {isEditingTitle ? (
+            <div className="flex gap-2 items-center mb-2">
+              <input
+                type="text"
+                value={editTitle}
+                onChange={e => onEditTitle(e.target.value)}
+                className="flex-1 px-2 py-1 rounded border-2 border-[var(--color-green-main)] bg-[var(--color-surface)] text-[15px] font-bold text-[var(--color-green-dark)] outline-none"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter') onSaveTitle()
+                  if (e.key === 'Escape') onCancelEditTitle()
+                }}
+              />
+              <button
+                onClick={onSaveTitle}
+                className="px-2 py-1 rounded bg-[var(--color-green-main)] text-white text-xs font-semibold cursor-pointer hover:bg-[var(--color-green-mid)]"
+              >
+                ✓
+              </button>
+              <button
+                onClick={onCancelEditTitle}
+                className="px-2 py-1 rounded bg-[var(--color-border)] text-[var(--color-text-secondary)] text-xs font-semibold cursor-pointer hover:bg-[var(--color-gray-200)]"
+              >
+                ✕
+              </button>
             </div>
+          ) : (
+            <h3
+              onClick={onStartEditTitle}
+              className="text-[15px] font-bold text-[var(--color-green-dark)] truncate cursor-pointer hover:text-[var(--color-green-main)] transition-colors"
+            >
+              {isStarred && <span className="mr-1">⭐</span>}
+              {skit.title}
+            </h3>
           )}
+          <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 truncate">{skit.subtitle}</p>
+          <div className="mt-1.5">
+            <InlineTags
+              tags={skit.tags || []}
+              onChange={onSaveTags}
+              editable={true}
+            />
+          </div>
         </div>
 
         {/* Action buttons */}
@@ -182,6 +223,8 @@ export function LibraryView({ onOpenSkit, onImport }: LibraryViewProps) {
   const { skitService } = useServices()
   const [sortMode, setSortMode] = useState<SortMode>('recent')
   const [activeTagFilters, setActiveTagFilters] = useState<Set<string>>(new Set())
+  const [editingSkitId, setEditingSkitId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
 
   // Collect all unique tags
   const allTags = useMemo(() => {
@@ -274,6 +317,45 @@ export function LibraryView({ onOpenSkit, onImport }: LibraryViewProps) {
     onOpenSkit(skit)
   }, [setCurrentSkitId, onOpenSkit])
 
+  const handleStartEditTitle = useCallback((skit: Skit) => {
+    setEditingSkitId(skit.id)
+    setEditTitle(skit.title)
+  }, [])
+
+  const handleCancelEditTitle = useCallback(() => {
+    setEditingSkitId(null)
+    setEditTitle('')
+  }, [])
+
+  const handleSaveTitle = useCallback(async () => {
+    if (!editingSkitId || !editTitle.trim()) {
+      handleCancelEditTitle()
+      return
+    }
+    try {
+      const skit = skitLibrary.find(s => s.id === editingSkitId)
+      if (!skit) return
+      await skitService.updateSkit(editingSkitId, { ...skit, title: editTitle.trim() })
+      await refreshLibrary()
+      toast.success('Title updated')
+      setEditingSkitId(null)
+    } catch {
+      toast.error('Failed to update title')
+    }
+  }, [editingSkitId, editTitle, skitLibrary, skitService, refreshLibrary, handleCancelEditTitle])
+
+  const handleSaveTags = useCallback(async (skitId: string, newTags: string[]) => {
+    try {
+      const skit = skitLibrary.find(s => s.id === skitId)
+      if (!skit) return
+      await skitService.updateSkit(skitId, { ...skit, tags: newTags })
+      await refreshLibrary()
+      toast.success('Tags updated')
+    } catch {
+      toast.error('Failed to update tags')
+    }
+  }, [skitLibrary, skitService, refreshLibrary])
+
   const renderCard = (skit: Skit) => (
     <SkitCard
       key={skit.id}
@@ -283,6 +365,13 @@ export function LibraryView({ onOpenSkit, onImport }: LibraryViewProps) {
       onEdit={handleEdit}
       onShare={handleShare}
       isStarred={isStarred(skit.id)}
+      isEditingTitle={editingSkitId === skit.id}
+      onStartEditTitle={() => handleStartEditTitle(skit)}
+      onCancelEditTitle={handleCancelEditTitle}
+      onSaveTitle={handleSaveTitle}
+      editTitle={editTitle}
+      onEditTitle={setEditTitle}
+      onSaveTags={(tags) => handleSaveTags(skit.id, tags)}
     />
   )
 

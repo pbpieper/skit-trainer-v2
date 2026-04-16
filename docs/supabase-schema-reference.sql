@@ -117,6 +117,32 @@ CREATE TABLE public.sessions (
   score_data JSONB
 );
 
+-- Ladder Progress
+CREATE TABLE public.ladder_progress (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  skit_id UUID NOT NULL REFERENCES public.skits(id) ON DELETE CASCADE,
+  current_level INTEGER NOT NULL DEFAULT 1,
+  unlocked_levels INTEGER[] NOT NULL DEFAULT '{1}',
+  completed_levels INTEGER[] NOT NULL DEFAULT '{}',
+  level_scores JSONB NOT NULL DEFAULT '{}',
+  tasks_completed JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, skit_id)
+);
+
+-- Challenge Attempts
+CREATE TABLE public.challenge_attempts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  skit_id UUID NOT NULL REFERENCES public.skits(id) ON DELETE CASCADE,
+  level_id INTEGER NOT NULL,
+  challenge_type TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  passed BOOLEAN NOT NULL,
+  attempted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Indexes
 CREATE INDEX idx_progress_user_skit ON public.progress(user_id, skit_id);
 CREATE INDEX idx_stars_user ON public.stars(user_id);
@@ -126,6 +152,9 @@ CREATE INDEX idx_tasks_goal ON public.tasks(goal_id);
 CREATE INDEX idx_streaks_user_skit ON public.streaks(user_id, skit_id);
 CREATE INDEX idx_sessions_user ON public.sessions(user_id, started_at DESC);
 CREATE INDEX idx_skits_created_by ON public.skits(created_by);
+CREATE INDEX idx_ladder_progress_user_skit ON public.ladder_progress(user_id, skit_id);
+CREATE INDEX idx_challenge_attempts_user_skit ON public.challenge_attempts(user_id, skit_id);
+CREATE INDEX idx_challenge_attempts_attempted_at ON public.challenge_attempts(attempted_at DESC);
 
 -- RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -136,6 +165,8 @@ ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.streaks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ladder_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.challenge_attempts ENABLE ROW LEVEL SECURITY;
 
 -- All user-owned tables: users manage their own data
 CREATE POLICY "Users view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
@@ -150,6 +181,8 @@ CREATE POLICY "Users manage own goals" ON public.goals FOR ALL USING (auth.uid()
 CREATE POLICY "Users manage own tasks" ON public.tasks FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users manage own streaks" ON public.streaks FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users manage own sessions" ON public.sessions FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users manage own ladder progress" ON public.ladder_progress FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users manage own challenge attempts" ON public.challenge_attempts FOR ALL USING (auth.uid() = user_id);
 
 -- Updated_at triggers
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -164,3 +197,4 @@ CREATE TRIGGER set_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH
 CREATE TRIGGER set_skits_updated_at BEFORE UPDATE ON public.skits FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_progress_updated_at BEFORE UPDATE ON public.progress FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_goals_updated_at BEFORE UPDATE ON public.goals FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER set_ladder_progress_updated_at BEFORE UPDATE ON public.ladder_progress FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

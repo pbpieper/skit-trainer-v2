@@ -6,6 +6,7 @@ import type {
   IStarService,
   IGoalService,
   ITaskService,
+  ILadderService,
 } from '@/services/types'
 
 // Local implementations
@@ -15,6 +16,7 @@ import { LocalUserService } from '@/services/local/LocalUserService'
 import { LocalStarService } from '@/services/local/LocalStarService'
 import { LocalGoalService } from '@/services/local/LocalGoalService'
 import { LocalTaskService } from '@/services/local/LocalTaskService'
+import { LocalLadderService } from '@/services/local/LocalLadderService'
 
 // Supabase implementations
 import { SupabaseSkitService } from '@/services/supabase/SupabaseSkitService'
@@ -23,6 +25,7 @@ import { SupabaseUserService } from '@/services/supabase/SupabaseUserService'
 import { SupabaseStarService } from '@/services/supabase/SupabaseStarService'
 import { SupabaseGoalService } from '@/services/supabase/SupabaseGoalService'
 import { SupabaseTaskService } from '@/services/supabase/SupabaseTaskService'
+import { SupabaseLadderService } from '@/services/supabase/SupabaseLadderService'
 
 import { isSupabaseAvailable, supabase } from '@/services/supabase/client'
 
@@ -33,6 +36,7 @@ export interface Services {
   starService: IStarService
   goalService: IGoalService
   taskService: ITaskService
+  ladderService: ILadderService
   isOnline: boolean
 }
 
@@ -52,6 +56,7 @@ function createLocalServices(): Services {
     starService: new LocalStarService(),
     goalService: new LocalGoalService(),
     taskService: new LocalTaskService(),
+    ladderService: new LocalLadderService(),
     isOnline: false,
   }
 }
@@ -64,6 +69,7 @@ function createSupabaseServices(): Services {
     starService: new SupabaseStarService(),
     goalService: new SupabaseGoalService(),
     taskService: new SupabaseTaskService(),
+    ladderService: new SupabaseLadderService(),
     isOnline: true,
   }
 }

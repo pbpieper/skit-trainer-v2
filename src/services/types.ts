@@ -2,6 +2,7 @@ import type { Skit } from '@/types/skit'
 import type { SkitProgress, ProgressExport } from '@/types/progress'
 import type { User } from '@/types/user'
 import type { LearningGoal, DailyTask, SkitStreak } from '@/types/goals'
+import type { LadderProgress, ChallengeAttempt } from '@/types/ladder'
 
 export interface ISkitService {
   listSkits(): Promise<Skit[]>
@@ -46,4 +47,11 @@ export interface ITaskService {
   saveTasks(tasks: DailyTask[]): Promise<void>
   getStreak(userId: string, skitId: string): Promise<SkitStreak>
   updateStreak(userId: string, skitId: string): Promise<SkitStreak>
+}
+
+export interface ILadderService {
+  getLadderProgress(userId: string, skitId: string): Promise<LadderProgress>
+  saveLadderProgress(userId: string, skitId: string, progress: LadderProgress): Promise<void>
+  recordChallengeAttempt(attempt: Omit<ChallengeAttempt, 'id'>): Promise<ChallengeAttempt>
+  getChallengeHistory(userId: string, skitId: string): Promise<ChallengeAttempt[]>
 }

@@ -53,10 +53,15 @@ function formatDate(iso: string): string {
 
 export function UpdateBanner() {
   const [notes, setNotes] = useState<PatchNote[]>([])
+  const [allNotes, setAllNotes] = useState<PatchNote[]>([])
   const [open, setOpen] = useState(false)
+  const [showFullHistory, setShowFullHistory] = useState(false)
   const [hasUnread, setHasUnread] = useState(false)
   const [visible, setVisible] = useState(false)
+  const [historyPage, setHistoryPage] = useState(0)
   const modalRef = useRef<HTMLDivElement>(null)
+  const historyRef = useRef<HTMLDivElement>(null)
+  const HISTORY_PAGE_SIZE = 20
 
   const checkUnread = useCallback((list: PatchNote[]) => {
     if (list.length === 0) return
@@ -66,19 +71,21 @@ export function UpdateBanner() {
 
   /* Initial fetch */
   useEffect(() => {
-    supabase
-      .from('patch_notes')
-      .select('*')
-      .eq('app_slug', APP_SLUG)
-      .order('published_at', { ascending: false })
-      .limit(10)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          setNotes(data as PatchNote[])
-          checkUnread(data as PatchNote[])
-          setVisible(true)
-        }
-      })
+    const fetchNotes = async () => {
+      const { data } = await supabase
+        .from('patch_notes')
+        .select('*')
+        .eq('app_slug', APP_SLUG)
+        .order('published_at', { ascending: false })
+
+      if (data && data.length > 0) {
+        setAllNotes(data as PatchNote[])
+        setNotes((data as PatchNote[]).slice(0, 10))
+        checkUnread(data as PatchNote[])
+        setVisible(true)
+      }
+    }
+    fetchNotes()
   }, [checkUnread])
 
   /* Realtime subscription */
@@ -128,13 +135,25 @@ export function UpdateBanner() {
 
   /* Lock scroll */
   useEffect(() => {
-    if (open) {
+    if (open || showFullHistory) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
     }
     return () => { document.body.style.overflow = '' }
-  }, [open])
+  }, [open, showFullHistory])
+
+  /* Infinite scroll for history */
+  useEffect(() => {
+    if (!showFullHistory || !historyRef.current) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && (historyPage + 1) * HISTORY_PAGE_SIZE < allNotes.length) {
+        setHistoryPage(p => p + 1)
+      }
+    })
+    observer.observe(historyRef.current)
+    return () => observer.disconnect()
+  }, [showFullHistory, historyPage, allNotes.length])
 
   if (!visible) return null
 
@@ -167,13 +186,97 @@ export function UpdateBanner() {
         )}
       </button>
 
+      {/* Full History Modal */}
+      <div
+        className={`fixed inset-0 z-[110] flex items-end sm:items-center justify-center
+          transition-opacity duration-200 ease-out
+          ${showFullHistory ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setShowFullHistory(false)}
+        aria-hidden={!showFullHistory}
+      >
+        <div className="absolute inset-0 bg-black/40 dark:bg-black/60" />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Changelog"
+          className={`relative w-full max-w-2xl mx-4 sm:mx-auto
+            bg-white dark:bg-zinc-900
+            rounded-t-2xl sm:rounded-2xl shadow-2xl
+            max-h-[85vh] flex flex-col
+            transition-all duration-200 ease-out
+            ${showFullHistory ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-zinc-100 dark:border-zinc-800 sticky top-0 bg-white dark:bg-zinc-900">
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M10 1l2.39 5.75L18 8.5l-4.3 3.83L14.78 18 10 15l-4.78 3L6.3 12.33 2 8.5l5.61-1.75L10 1z" />
+              </svg>
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Full Changelog</h2>
+            </div>
+            <button
+              onClick={() => setShowFullHistory(false)}
+              aria-label="Close"
+              className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200
+                hover:bg-zinc-100 dark:hover:bg-zinc-800
+                transition-colors duration-150 cursor-pointer bg-transparent border-none"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Changelog list with infinite scroll */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            {allNotes.slice(0, (historyPage + 1) * HISTORY_PAGE_SIZE).map((note, i) => (
+              <article key={note.id} className="relative">
+                {i < allNotes.length - 1 && (
+                  <div className="absolute left-[7px] top-8 bottom-0 w-px bg-zinc-200 dark:bg-zinc-700" />
+                )}
+                <div className="flex gap-3">
+                  <div className="relative mt-1.5 flex-shrink-0">
+                    <div className="h-[15px] w-[15px] rounded-full border-2 bg-zinc-300 dark:bg-zinc-600 border-zinc-200 dark:border-zinc-700" />
+                  </div>
+                  <div className="flex-1 min-w-0 pb-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold
+                        bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                        v{note.version}
+                      </span>
+                      <time className="text-xs text-zinc-400 dark:text-zinc-500">
+                        {formatDate(note.published_at)}
+                      </time>
+                    </div>
+                    <h3 className="mt-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{note.title}</h3>
+                    <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed whitespace-pre-line">{note.body}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+            {allNotes.length === 0 && (
+              <p className="text-center text-sm text-zinc-400 dark:text-zinc-500 py-8">
+                No updates yet. Check back soon!
+              </p>
+            )}
+            {/* Infinite scroll trigger */}
+            {(historyPage + 1) * HISTORY_PAGE_SIZE < allNotes.length && (
+              <div ref={historyRef} className="py-4 text-center">
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">Loading more...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Modal */}
       <div
         className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center
           transition-opacity duration-200 ease-out
-          ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          ${open && !showFullHistory ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setOpen(false)}
-        aria-hidden={!open}
+        aria-hidden={!open || showFullHistory}
       >
         <div className="absolute inset-0 bg-black/40 dark:bg-black/60" />
         <div
@@ -248,6 +351,18 @@ export function UpdateBanner() {
               </p>
             )}
           </div>
+
+          {/* Footer with View All link */}
+          {allNotes.length > 10 && (
+            <div className="border-t border-zinc-100 dark:border-zinc-800 px-6 py-3 text-center">
+              <button
+                onClick={() => setShowFullHistory(true)}
+                className="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 cursor-pointer bg-transparent border-none transition-colors"
+              >
+                View all updates →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>

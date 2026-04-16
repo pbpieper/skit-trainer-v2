@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/atoms/Modal'
 import { Button } from '@/components/atoms/Button'
+import { InlineTags } from '@/components/molecules/InlineTags'
 import { parseSkitFromText } from '@/data/skit-parser'
 import { useServices } from '@/services/ServiceProvider'
 import { useCreativeHub } from '@/hooks/useCreativeHub'
@@ -17,6 +18,7 @@ export function SkitImporter({ open, onClose, onCreated }: Props) {
   const { available: hubAvailable, askLLM } = useCreativeHub()
   const [raw, setRaw] = useState('')
   const [title, setTitle] = useState('')
+  const [tags, setTags] = useState<string[]>([])
   const [preview, setPreview] = useState<ReturnType<typeof parseSkitFromText> | null>(null)
   const [enhancing, setEnhancing] = useState(false)
 
@@ -45,10 +47,12 @@ export function SkitImporter({ open, onClose, onCreated }: Props) {
 
   const handleCreate = async () => {
     if (!preview) return
-    await skitService.createSkit(preview)
+    const skitWithTags = { ...preview, tags }
+    await skitService.createSkit(skitWithTags)
     toast.success(`Created "${preview.title}"`)
     setRaw('')
     setTitle('')
+    setTags([])
     setPreview(null)
     onCreated()
     onClose()
@@ -70,6 +74,10 @@ export function SkitImporter({ open, onClose, onCreated }: Props) {
             onChange={e => setTitle(e.target.value)}
             className="px-3 py-2 rounded-lg border-2 border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-primary)]"
           />
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1.5">Tags</label>
+            <InlineTags tags={tags} onChange={setTags} editable={true} />
+          </div>
           <textarea
             placeholder={"Paste your script here...\n\nFormat: SPEAKER: Line text\nOr just paste plain text (one speaker assumed)\n\nSeparate chunks with blank lines."}
             value={raw}
@@ -93,6 +101,10 @@ export function SkitImporter({ open, onClose, onCreated }: Props) {
           <div className="text-sm">
             <p className="font-bold text-[var(--color-green-dark)]">{preview.title}</p>
             <p className="text-[var(--color-text-secondary)] text-xs">{preview.subtitle}</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1.5">Tags</label>
+            <InlineTags tags={tags} onChange={setTags} editable={true} />
           </div>
           <div className="max-h-60 overflow-auto rounded-lg border border-[var(--color-border)] p-3">
             {preview.chunks.map(c => (
